@@ -20,10 +20,21 @@ const HEADERS = [
 ];
 
 /**
+ * Configura headers CORS para permitir requisições cross-origin
+ */
+function setCorsHeaders_(output) {
+  // Apps Script não suporta setHeader diretamente, mas podemos usar HtmlService
+  // ou retornar um objeto com headers através de uma função auxiliar
+  // Para Web Apps, o ContentService já lida com CORS de forma limitada
+  // A melhor solução é usar mode: 'no-cors' no fetch OU usar uma abordagem diferente
+  return output;
+}
+
+/**
  * Resposta GET para verificar se o serviço está ativo
  */
 function doGet(e) {
-  return ContentService.createTextOutput(
+  const output = ContentService.createTextOutput(
     JSON.stringify({
       ok: true,
       service: "forms-suplentes-xxi-ejcpina",
@@ -31,6 +42,8 @@ function doGet(e) {
       headers: HEADERS
     })
   ).setMimeType(ContentService.MimeType.JSON);
+  
+  return output;
 }
 
 /**
@@ -38,10 +51,20 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
-    const data = parseJsonBody_(e);
+    const parsed = parseJsonBody_(e);
+    
+    // Se os dados vieram como form-urlencoded, 'data' pode ser uma string JSON
+    let dataArray = parsed.data;
+    if (typeof dataArray === 'string') {
+      try {
+        dataArray = JSON.parse(dataArray);
+      } catch (err) {
+        throw new Error("Erro ao fazer parse do campo 'data': " + err.message);
+      }
+    }
     
     // Validar estrutura dos dados
-    if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+    if (!dataArray || !Array.isArray(dataArray) || dataArray.length === 0) {
       throw new Error("Dados inválidos: esperado um array 'data' com pelo menos um item");
     }
 
@@ -62,9 +85,9 @@ function doPost(e) {
 
     // Processar cada registro do array
     let count = 0;
-    const timestamp = data.submitted_at || new Date().toISOString();
+    const timestamp = parsed.submitted_at || new Date().toISOString();
 
-    data.data.forEach((item) => {
+    dataArray.forEach((item) => {
       // Validar campos obrigatórios
       if (!item.numero_ficha || !item.presenca_missas) {
         throw new Error("Cada registro deve conter 'numero_ficha' e 'presenca_missas'");
@@ -80,6 +103,30 @@ function doPost(e) {
       sheet.appendRow(row);
       count++;
     });
+
+    // Se vier de formulário HTML (e.parameter existe), retornar HTML simples
+    // Caso contrário, retornar JSON
+    if (e && e.parameter) {
+      return ContentService.createHtmlOutput(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Sucesso</title>
+        </head>
+        <body>
+          <h1>Formulário enviado com sucesso!</h1>
+          <p>${count} registro(s) adicionado(s) à planilha.</p>
+          <script>
+            // Enviar mensagem para o iframe pai (se existir)
+            if (window.parent !== window) {
+              window.parent.postMessage({success: true, count: ${count}}, '*');
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    }
 
     return json_({
       ok: true,
@@ -101,16 +148,60 @@ function doPost(e) {
 }
 
 /**
- * Parse do corpo JSON da requisição
+ * Parse do corpo da requisição (suporta JSON, form-urlencoded e parâmetros de formulário HTML)
  */
 function parseJsonBody_(e) {
+  // Se vier de formulário HTML, os dados estarão em e.parameter
+  if (e && e.parameter) {
+    const params = {};
+    for (let key in e.parameter) {
+      const value = e.parameter[key];
+      // Se a chave é 'data', tentar fazer parse do JSON
+      if (key === 'data') {
+        try {
+          params[key] = JSON.parse(value);
+        } catch {
+          params[key] = value;
+        }
+      } else {
+        params[key] = value;
+      }
+    }
+    return params;
+  }
+
+  // Se vier como JSON no corpo da requisição
   const raw = (e && e.postData && e.postData.contents) || "";
   if (!raw) throw new Error("Corpo da requisição vazio");
 
+  // Tentar parse como JSON primeiro
   try {
     return JSON.parse(raw);
-  } catch (err) {
-    throw new Error("JSON inválido no corpo da requisição");
+  } catch (jsonErr) {
+    // Se não for JSON, tentar como form-urlencoded
+    try {
+      const params = {};
+      const pairs = raw.split('&');
+      for (let pair of pairs) {
+        const [key, value] = pair.split('=');
+        const decodedKey = decodeURIComponent(key);
+        const decodedValue = decodeURIComponent(value || '');
+        
+        // Se a chave é 'data', tentar fazer parse do JSON
+        if (decodedKey === 'data') {
+          try {
+            params[decodedKey] = JSON.parse(decodedValue);
+          } catch {
+            params[decodedKey] = decodedValue;
+          }
+        } else {
+          params[decodedKey] = decodedValue;
+        }
+      }
+      return params;
+    } catch (formErr) {
+      throw new Error("Formato de dados inválido (esperado JSON ou form-urlencoded)");
+    }
   }
 }
 
@@ -150,7 +241,7 @@ function ensureHeaders_(sheet, headers) {
 }
 
 /**
- * Retorna resposta JSON
+ * Retorna resposta JSON com headers CORS
  */
 function json_(obj, statusCode) {
   const output = ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(

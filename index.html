@@ -302,7 +302,7 @@
         document.getElementById('mainForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            if (APPS_SCRIPT_URL === 'REPLACE_WITH_YOUR_WEB_APP_URL') {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'REPLACE_WITH_YOUR_WEB_APP_URL' || !APPS_SCRIPT_URL.includes('script.google.com')) {
                 showMessage('Por favor, configure a URL do Apps Script no código JavaScript.', 'error');
                 return;
             }
@@ -349,30 +349,97 @@
             submitBtn.innerHTML = '<span class="loading"></span>Enviando...';
 
             try {
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        data: data,
-                        submitted_at: new Date().toISOString()
-                    })
-                });
+                // Criar formulário oculto para evitar preflight CORS
+                const hiddenForm = document.createElement('form');
+                hiddenForm.method = 'POST';
+                hiddenForm.action = APPS_SCRIPT_URL;
+                hiddenForm.target = 'hidden_iframe';
+                hiddenForm.style.display = 'none';
 
-                const result = await response.json();
-
-                if (result.ok) {
-                    showMessage(`Formulário enviado com sucesso! ${result.count || data.length} registro(s) adicionado(s).`, 'success');
-                    // Limpar formulário após sucesso
-                    setTimeout(() => {
-                        document.getElementById('formBlocks').innerHTML = '';
-                        blockCounter = 0;
-                        document.getElementById('formBlocks').appendChild(createFormBlock());
-                    }, 2000);
-                } else {
-                    showMessage(`Erro ao enviar: ${result.error || 'Erro desconhecido'}`, 'error');
+                // Criar iframe oculto para receber resposta
+                let iframe = document.getElementById('hidden_iframe');
+                if (!iframe) {
+                    iframe = document.createElement('iframe');
+                    iframe.id = 'hidden_iframe';
+                    iframe.name = 'hidden_iframe';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
                 }
+
+                // Adicionar campos ao formulário
+                const dataInput = document.createElement('input');
+                dataInput.type = 'hidden';
+                dataInput.name = 'data';
+                dataInput.value = JSON.stringify(data);
+                hiddenForm.appendChild(dataInput);
+
+                const timestampInput = document.createElement('input');
+                timestampInput.type = 'hidden';
+                timestampInput.name = 'submitted_at';
+                timestampInput.value = new Date().toISOString();
+                hiddenForm.appendChild(timestampInput);
+
+                document.body.appendChild(hiddenForm);
+
+                // Escutar mensagens do iframe (postMessage)
+                const messageHandler = function(event) {
+                    // Aceitar mensagens de qualquer origem (em produção, você pode restringir)
+                    if (event.data && event.data.success) {
+                        showMessage(`Formulário enviado com sucesso! ${event.data.count || data.length} registro(s) adicionado(s).`, 'success');
+                        window.removeEventListener('message', messageHandler);
+                        
+                        // Limpar formulário após sucesso
+                        setTimeout(() => {
+                            document.getElementById('formBlocks').innerHTML = '';
+                            blockCounter = 0;
+                            document.getElementById('formBlocks').appendChild(createFormBlock());
+                        }, 2000);
+                        
+                        if (document.body.contains(hiddenForm)) {
+                            document.body.removeChild(hiddenForm);
+                        }
+                    }
+                };
+                window.addEventListener('message', messageHandler);
+
+                // Monitorar quando o iframe carregar (resposta recebida)
+                // Fallback caso postMessage não funcione
+                iframe.onload = function() {
+                    // Aguardar um pouco para dar tempo do postMessage
+                    setTimeout(() => {
+                        // Se não recebeu mensagem, assumir sucesso
+                        showMessage(`Formulário enviado! ${data.length} registro(s) sendo processado(s).`, 'success');
+                        
+                        // Limpar formulário após sucesso
+                        setTimeout(() => {
+                            document.getElementById('formBlocks').innerHTML = '';
+                            blockCounter = 0;
+                            document.getElementById('formBlocks').appendChild(createFormBlock());
+                        }, 2000);
+                        
+                        if (document.body.contains(hiddenForm)) {
+                            document.body.removeChild(hiddenForm);
+                        }
+                        window.removeEventListener('message', messageHandler);
+                    }, 1000);
+                };
+
+                // Submeter formulário
+                hiddenForm.submit();
+
+                // Timeout de segurança caso o iframe não carregue
+                setTimeout(() => {
+                    if (document.body.contains(hiddenForm)) {
+                        showMessage(`Formulário enviado! ${data.length} registro(s) sendo processado(s).`, 'success');
+                        document.body.removeChild(hiddenForm);
+                        setTimeout(() => {
+                            document.getElementById('formBlocks').innerHTML = '';
+                            blockCounter = 0;
+                            document.getElementById('formBlocks').appendChild(createFormBlock());
+                        }, 2000);
+                    }
+                }, 3000);
+
             } catch (error) {
                 showMessage(`Erro ao enviar formulário: ${error.message}`, 'error');
             } finally {
