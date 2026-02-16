@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulário de Suplentes - XXI EJCPINA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .form-block {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .form-block:first-of-type {
+            border-color: #667eea;
+        }
+
+        .form-block h3 {
+            color: #495057;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #495057;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .radio-option input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .radio-option label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .add-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: background 0.3s;
+            width: 100%;
+        }
+
+        .add-btn:hover {
+            background: #218838;
+        }
+
+        .submit-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 14px 32px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            width: 100%;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            background: #5568d3;
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Formulário de Suplentes</h1>
+        
+        <form id="mainForm">
+            <div id="formBlocks">
+                <!-- Primeiro bloco será inserido aqui via JavaScript -->
+            </div>
+
+            <button type="button" class="add-btn" id="addBlockBtn">
+                ➕ Adicionar Outra Ficha
+            </button>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                Enviar Formulário
+            </button>
+
+            <div id="message" class="message"></div>
+        </form>
+    </div>
+
+    <script>
+        // Configuração - Substitua pela URL do seu Web App do Google Apps Script
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyn9FYNuyuVjHtyUcTMgFwoDZ8Jfc3-c1Ej-bvCl_636KJWj7DbpJUDxJphGWKedVoC_w/exec';
+
+        let blockCounter = 0;
+
+        // Criar um novo bloco de formulário
+        function createFormBlock() {
+            blockCounter++;
+            const blockId = `block-${blockCounter}`;
+            
+            const block = document.createElement('div');
+            block.className = 'form-block';
+            block.id = blockId;
+            
+            block.innerHTML = `
+                <h3>Ficha ${blockCounter}</h3>
+                ${blockCounter > 1 ? '<button type="button" class="remove-btn" onclick="removeBlock(\'' + blockId + '\')">Remover</button>' : ''}
+                <div class="form-group">
+                    <label for="ficha-${blockCounter}">Número da Ficha *</label>
+                    <input type="text" id="ficha-${blockCounter}" name="ficha-${blockCounter}" required>
+                </div>
+                <div class="form-group">
+                    <label>Essa pessoa é presente em missas? Dominical ou Quinta-feira? *</label>
+                    <div class="radio-group">
+                        <div class="radio-option">
+                            <input type="radio" id="sim-${blockCounter}" name="presenca-${blockCounter}" value="Sim" required>
+                            <label for="sim-${blockCounter}">Sim</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="nao-${blockCounter}" name="presenca-${blockCounter}" value="Não" required>
+                            <label for="nao-${blockCounter}">Não</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="talvez-${blockCounter}" name="presenca-${blockCounter}" value="Talvez" required>
+                            <label for="talvez-${blockCounter}">Talvez</label>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return block;
+        }
+
+        // Remover um bloco
+        function removeBlock(blockId) {
+            const block = document.getElementById(blockId);
+            if (block) {
+                block.remove();
+                updateBlockNumbers();
+            }
+        }
+
+        // Atualizar números dos blocos
+        function updateBlockNumbers() {
+            const blocks = document.querySelectorAll('.form-block');
+            blocks.forEach((block, index) => {
+                const h3 = block.querySelector('h3');
+                if (h3) {
+                    h3.textContent = `Ficha ${index + 1}`;
+                }
+            });
+        }
+
+        // Adicionar primeiro bloco ao carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            const formBlocks = document.getElementById('formBlocks');
+            formBlocks.appendChild(createFormBlock());
+        });
+
+        // Adicionar novo bloco
+        document.getElementById('addBlockBtn').addEventListener('click', () => {
+            const formBlocks = document.getElementById('formBlocks');
+            formBlocks.appendChild(createFormBlock());
+        });
+
+        // Enviar formulário
+        document.getElementById('mainForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (APPS_SCRIPT_URL === 'REPLACE_WITH_YOUR_WEB_APP_URL') {
+                showMessage('Por favor, configure a URL do Apps Script no código JavaScript.', 'error');
+                return;
+            }
+
+            const blocks = document.querySelectorAll('.form-block');
+            if (blocks.length === 0) {
+                showMessage('Adicione pelo menos uma ficha antes de enviar.', 'error');
+                return;
+            }
+
+            const data = [];
+            let isValid = true;
+
+            blocks.forEach((block, index) => {
+                const blockId = block.id;
+                const fichaInput = block.querySelector(`input[type="text"]`);
+                const presencaRadio = block.querySelector(`input[type="radio"]:checked`);
+
+                if (!fichaInput || !fichaInput.value.trim()) {
+                    isValid = false;
+                    return;
+                }
+
+                if (!presencaRadio) {
+                    isValid = false;
+                    return;
+                }
+
+                data.push({
+                    numero_ficha: fichaInput.value.trim(),
+                    presenca_missas: presencaRadio.value
+                });
+            });
+
+            if (!isValid) {
+                showMessage('Por favor, preencha todos os campos obrigatórios.', 'error');
+                return;
+            }
+
+            // Desabilitar botão e mostrar loading
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span>Enviando...';
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        data: data,
+                        submitted_at: new Date().toISOString()
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.ok) {
+                    showMessage(`Formulário enviado com sucesso! ${result.count || data.length} registro(s) adicionado(s).`, 'success');
+                    // Limpar formulário após sucesso
+                    setTimeout(() => {
+                        document.getElementById('formBlocks').innerHTML = '';
+                        blockCounter = 0;
+                        document.getElementById('formBlocks').appendChild(createFormBlock());
+                    }, 2000);
+                } else {
+                    showMessage(`Erro ao enviar: ${result.error || 'Erro desconhecido'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Erro ao enviar formulário: ${error.message}`, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+
+        // Mostrar mensagem
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type}`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
